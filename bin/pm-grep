@@ -19,6 +19,7 @@ my $opt = +{};
 
 GetOptions(
     'v|verbose!'              => \$opt->{verbose},
+    'i|ignore-case!'          => \$opt->{ignore_case},
     's|skip-pod!'             => \$opt->{skip_pod},
     'q|quickfix!'             => \$opt->{quickfix},
     'h|help!'                 => \$opt->{help},
@@ -55,6 +56,7 @@ sub main {
         }else{
             push @cmds, ("--with-filename", "--group" , "--nopager");
         }
+        push @cmds, "--ignore-case" if $opt->{ignore_case};
         push @cmds, $search;
         for my $file (@filelist) {
             if( $opt->{verbose} ){
@@ -149,6 +151,10 @@ Skip Pod
 =item -q,--quickfix
 
 Display for quickfix (vim / emacs?)
+
+=item -i, --ignore-case
+
+Ignore case in the search strings.
 
 =item -h,--help
 
