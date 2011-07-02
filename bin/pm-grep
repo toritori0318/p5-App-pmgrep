@@ -8,8 +8,13 @@ use Pod::Usage qw/pod2usage/;
 use Config;
 use autodie;
 use File::Temp 'tempfile';
+use File::Spec;
 use Module::Info::File;
 use Term::ANSIColor;
+use Cwd;
+my $max = 30;
+my $counter = 0;
+
 
 #use App::pmgrep;
 
@@ -18,12 +23,14 @@ my @inc = @INC;
 my $opt = +{};
 
 GetOptions(
-    'v|verbose!'              => \$opt->{verbose},
-    'i|ignore-case!'          => \$opt->{ignore_case},
-    's|skip-pod!'             => \$opt->{skip_pod},
-    'q|quickfix!'             => \$opt->{quickfix},
-    'h|help!'                 => \$opt->{help},
-    'V|version!'              => \$opt->{version},
+    'v|verbose!'     => \$opt->{verbose},
+    'i|ignore-case!' => \$opt->{ignore_case},
+    's|skip-pod!'    => \$opt->{skip_pod},
+    'q|quickfix!'    => \$opt->{quickfix},
+    'h|help!'        => \$opt->{help},
+    'V|version!'     => \$opt->{version},
+    'I|inc!'         => \$opt->{inc},
+    'p|project!'     => \$opt->{project},
 );
 
 pod2usage 1 if $opt->{help};
@@ -33,12 +40,19 @@ if ($opt->{version}) {
     exit;
 }
 
-pod2usage 1 if scalar @ARGV < 2;
-
-main(@ARGV);
+if($opt->{inc}){
+    pod2usage 1 if scalar @ARGV < 1;
+    main_inc(@ARGV);
+} elsif($opt->{project}){
+    pod2usage 1 if scalar @ARGV < 1;
+    main_project(@ARGV);
+} else {
+    pod2usage 1 if scalar @ARGV < 2;
+    main_dist(@ARGV);
+}
 exit;
 
-sub main {
+sub main_dist {
     my $search = shift;
     my @modules = @_;
 
@@ -49,15 +63,12 @@ sub main {
             warn "$module is not installed.\n";
             next;
         }
-        my @filelist = fixup_packilist($packlist);
-        my @cmds = ("ack");
-        if( $opt->{quickfix} ){
-            push @cmds, ("--with-filename", "--nogroup" , "--nocolor" , "--nopager");
-        }else{
-            push @cmds, ("--with-filename", "--group" , "--nopager");
-        }
-        push @cmds, "--ignore-case" if $opt->{ignore_case};
+
+        my @cmds = command();
+        $search = "'$search'";
         push @cmds, $search;
+
+        my @filelist = fixup_packilist($packlist);
         for my $file (@filelist) {
             if( $opt->{verbose} ){
                 my $mod = Module::Info::File->new_from_file($file);
@@ -77,6 +88,52 @@ sub main {
             warn $cmd if $opt->{verbose};
         }
     }
+}
+
+sub main_inc {
+    my ($search) = @_;
+
+    my @cmds = command();
+    $search = "'$search'";
+    push @cmds, $search;
+    for my $dir (@INC) {
+        if( $opt->{verbose} ){
+            print $dir, "\n";
+        }
+
+        my $cmd = join(" ", (@cmds, $dir));
+        system($cmd);
+        warn $cmd if $opt->{verbose};
+    }
+}
+
+sub main_project {
+    my ($search) = @_;
+
+    my @libs = &find_project_lib();
+    my @cmds = command();
+    $search = "'$search'";
+    push @cmds, $search;
+    for my $dir (@libs) {
+        if( $opt->{verbose} ){
+            print $dir, "\n";
+        }
+
+        my $cmd = join(" ", (@cmds, $dir));
+        system($cmd);
+        warn $cmd if $opt->{verbose};
+    }
+}
+
+sub command {
+    my @cmds = ("ack");
+    if( $opt->{quickfix} ){
+        push @cmds, ("--with-filename", "--nogroup" , "--nocolor" , "--nopager");
+    }else{
+        push @cmds, ("--with-filename", "--group" , "--nopager");
+    }
+    push @cmds, "--ignore-case" if $opt->{ignore_case};
+    return @cmds;
 }
 
 sub locate_pack {
@@ -126,11 +183,35 @@ sub pod_skip {
     return $res;
 }
 
+sub find_project_lib{
+    #my $dir = shift;
+    my $dir = getcwd;
+    return if ++$counter > $max || $dir eq '/';
+
+    my @hit;
+    opendir(DIR, $dir);
+    while (defined(my $file = readdir(DIR))) {
+        next if( $file =~ /^\.{1,2}$/ );
+        if( $file =~ /^(lib|extlib)$/ ) {
+            push @hit, $file;
+        }
+    }
+    closedir(DIR);
+    if(scalar @hit == 0 ){
+        chdir('..');
+        find_project_lib();
+    } else{
+        return map { File::Spec->catfile( $dir, $_) } @hit;
+    }
+}
+
+
+
 __END__
 
 =head1 NAME
 
-pm-grep - Grep modules
+pm-grep - Grep perl modules
 
 =head1 USAGE
 
@@ -163,6 +244,14 @@ This help message
 =item -V,--version
 
 Show version
+
+=item -I,--inc
+
+grep module from @INC
+
+=item -p,--project
+
+grep mode 'Project'.
 
 =back
 

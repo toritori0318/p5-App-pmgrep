@@ -1,4 +1,8 @@
 Revision history for Perl extension App::pmgrep
 
-0.01    Sat Feb 19 01:14:47 2011
+0.02    2011/06/26
+        - Added options for search from @INC
+        - Added options for search project
+
+0.01    2011/02/19
         - original version
