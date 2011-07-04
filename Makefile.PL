@@ -10,6 +10,8 @@ requires 'Module::Info::File';
 requires 'Term::ANSIColor';
 
 install_script 'bin/pm-grep';
+install_script 'bin/pm-grep-inc';
+install_script 'bin/pm-grep-project';
 
 tests 't/*.t';
 author_tests 'xt';

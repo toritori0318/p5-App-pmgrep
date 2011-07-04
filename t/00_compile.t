@@ -1,4 +1,9 @@
 use strict;
-use Test::More tests => 1;
+use Test::More;
 
-BEGIN { use_ok 'App::pmgrep' }
+BEGIN {
+    use_ok 'App::pmgrep';
+    use_ok 'App::pmgrep::util';
+}
+
+done_testing;

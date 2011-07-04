@@ -1,0 +1,123 @@
+#!perl
+
+use strict;
+use warnings;
+use Getopt::Long qw/GetOptions :config bundling/;
+use Pod::Usage qw/pod2usage/;
+use Config;
+use autodie;
+use File::Spec;
+
+use App::pmgrep::util;
+
+use Cwd;
+my $max = 30;
+my $counter = 0;
+
+my $opt = +{};
+
+GetOptions(
+    'v|verbose!'     => \$opt->{verbose},
+    'i|ignore-case!' => \$opt->{ignore_case},
+    's|skip-pod!'    => \$opt->{skip_pod},
+    'q|quickfix!'    => \$opt->{quickfix},
+    'h|help!'        => \$opt->{help},
+    'V|version!'     => \$opt->{version},
+);
+
+pod2usage 1 if $opt->{help} || scalar @ARGV < 1;
+
+if ($opt->{version}) {
+    warn "App::pmgrep v$App::pmgrep::VERSION\n"; 
+    exit;
+}
+
+main(@ARGV);
+exit;
+
+sub main {
+    my ($search) = @_;
+
+    my @libs = &find_project_lib();
+    my @cmds = App::pmgrep::util::command($opt);
+    $search = "'$search'";
+    push @cmds, $search;
+    for my $dir (@libs) {
+        warn $dir if $opt->{verbose};
+
+        my $cmd = join(" ", (@cmds, $dir));
+        system($cmd);
+        warn $cmd if $opt->{verbose};
+    }
+}
+
+sub find_project_lib{
+    #my $dir = shift;
+    my $dir = getcwd;
+    return if ++$counter > $max || $dir eq '/';
+
+    my @hit;
+    opendir(DIR, $dir);
+    while (defined(my $file = readdir(DIR))) {
+        next if( $file =~ /^\.{1,2}$/ );
+        if( $file =~ /^(lib|extlib)$/ ) {
+            push @hit, $file;
+        }
+    }
+    closedir(DIR);
+    if(scalar @hit == 0 ){
+        chdir('..');
+        find_project_lib();
+    } else{
+        return map { File::Spec->catfile( $dir, $_) } @hit;
+    }
+}
+
+__END__
+
+=head1 NAME
+
+pm-grep-project - this will search(Grep) modules in the project.
+
+=head1 USAGE
+
+pm-grep-project [options] Search-String
+
+=head1 OPTIONS
+
+=over 4
+
+=item -v,--verbose
+
+Turns on chatty output
+
+=item -s,--skip-pod
+
+Skip Pod
+
+=item -q,--quickfix
+
+Display for quickfix (vim / emacs?)
+
+=item -i, --ignore-case
+
+Ignore case in the search strings.
+
+=item -h,--help
+
+This help message
+
+=item -V,--version
+
+Show version
+
+=back
+
+=head1 OTHER TOOLS
+
+-head2 Vim integration
+
+use pmgrep.vim
+
+=cut
+

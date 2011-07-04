@@ -8,18 +8,10 @@ use Pod::Usage qw/pod2usage/;
 use Config;
 use autodie;
 use File::Temp 'tempfile';
-use File::Spec;
-use Module::Info::File;
 use Term::ANSIColor;
-use Cwd;
-my $max = 30;
-my $counter = 0;
 
+use App::pmgrep::util;
 
-#use App::pmgrep;
-
-my $cpanmetadb = 'http://cpanmetadb.appspot.com/v1.0/package';
-my @inc = @INC;
 my $opt = +{};
 
 GetOptions(
@@ -29,56 +21,45 @@ GetOptions(
     'q|quickfix!'    => \$opt->{quickfix},
     'h|help!'        => \$opt->{help},
     'V|version!'     => \$opt->{version},
-    'I|inc!'         => \$opt->{inc},
-    'p|project!'     => \$opt->{project},
 );
 
-pod2usage 1 if $opt->{help};
+pod2usage 1 if $opt->{help} || scalar @ARGV < 2;
 
 if ($opt->{version}) {
     warn "App::pmgrep v$App::pmgrep::VERSION\n"; 
     exit;
 }
 
-if($opt->{inc}){
-    pod2usage 1 if scalar @ARGV < 1;
-    main_inc(@ARGV);
-} elsif($opt->{project}){
-    pod2usage 1 if scalar @ARGV < 1;
-    main_project(@ARGV);
-} else {
-    pod2usage 1 if scalar @ARGV < 2;
-    main_dist(@ARGV);
-}
+main(@ARGV);
 exit;
 
-sub main_dist {
+sub main {
     my $search = shift;
     my @modules = @_;
 
     for my $module (@modules) {
-        my($packlist) = locate_pack($module);
+        my($packlist) = App::pmgrep::util::locate_pack($module);
 
         unless ($packlist) {
             warn "$module is not installed.\n";
             next;
         }
 
-        my @cmds = command();
+        my @cmds = App::pmgrep::util::command($opt);
         $search = "'$search'";
         push @cmds, $search;
 
-        my @filelist = fixup_packilist($packlist);
+        my @filelist = App::pmgrep::util::fixup_packilist($packlist);
         for my $file (@filelist) {
             if( $opt->{verbose} ){
                 my $mod = Module::Info::File->new_from_file($file);
                 my $display_filename = Term::ANSIColor::colored( $mod->name, 'bold green' );
-                print $display_filename, "\n";
+                warn $display_filename;
             }
 
             if($opt->{skip_pod}){
                 my ($tempfh, $tempname) = tempfile;
-                print $tempfh pod_skip(slurp($file));
+                print $tempfh App::pmgrep::util::pod_skip(slurp($file));
                 close $tempfh;
                 $file = $tempname;
             }
@@ -90,128 +71,11 @@ sub main_dist {
     }
 }
 
-sub main_inc {
-    my ($search) = @_;
-
-    my @cmds = command();
-    $search = "'$search'";
-    push @cmds, $search;
-    for my $dir (@INC) {
-        if( $opt->{verbose} ){
-            print $dir, "\n";
-        }
-
-        my $cmd = join(" ", (@cmds, $dir));
-        system($cmd);
-        warn $cmd if $opt->{verbose};
-    }
-}
-
-sub main_project {
-    my ($search) = @_;
-
-    my @libs = &find_project_lib();
-    my @cmds = command();
-    $search = "'$search'";
-    push @cmds, $search;
-    for my $dir (@libs) {
-        if( $opt->{verbose} ){
-            print $dir, "\n";
-        }
-
-        my $cmd = join(" ", (@cmds, $dir));
-        system($cmd);
-        warn $cmd if $opt->{verbose};
-    }
-}
-
-sub command {
-    my @cmds = ("ack");
-    if( $opt->{quickfix} ){
-        push @cmds, ("--with-filename", "--nogroup" , "--nocolor" , "--nopager");
-    }else{
-        push @cmds, ("--with-filename", "--group" , "--nopager");
-    }
-    push @cmds, "--ignore-case" if $opt->{ignore_case};
-    return @cmds;
-}
-
-sub locate_pack {
-    my $dist = shift;
-    $dist =~ s!::!/!g;
-
-    for my $lib (@inc) {
-        my $packlist = "$lib/auto/$dist/.packlist";
-        return $packlist if -f $packlist && -r _;
-    }
-
-    return;
-}
-
-sub fixup_packilist {
-    my ($packlist) = @_;
-    my @target_list;
-    open my $in, "<", $packlist or die "$packlist: $!";
-    while (my $file = <$in>) {
-        chomp $file;
-        push @target_list, $file if $file =~ m/\.pm$/;
-    }
-    return @target_list;
-}
-
-sub slurp {
-    my $file = shift;
-    open my $fh, "<", $file;
-    my $data = do{ local $/; <$fh>};
-    close $fh;
-    return $data;
-}
-
-sub pod_skip {
-    my $data = shift;
-    my $pod_skip = 0;
-    my $res = '';
-    for my $line (split /\n/, $data) {
-        if ($line =~ /^=/) {
-            $pod_skip = 1;
-        } elsif ($line =~ /^=cut/) {
-            $pod_skip = 0;
-        } elsif($pod_skip != 1) {
-            $res .= $line . "\n";
-        }
-    }
-    return $res;
-}
-
-sub find_project_lib{
-    #my $dir = shift;
-    my $dir = getcwd;
-    return if ++$counter > $max || $dir eq '/';
-
-    my @hit;
-    opendir(DIR, $dir);
-    while (defined(my $file = readdir(DIR))) {
-        next if( $file =~ /^\.{1,2}$/ );
-        if( $file =~ /^(lib|extlib)$/ ) {
-            push @hit, $file;
-        }
-    }
-    closedir(DIR);
-    if(scalar @hit == 0 ){
-        chdir('..');
-        find_project_lib();
-    } else{
-        return map { File::Spec->catfile( $dir, $_) } @hit;
-    }
-}
-
-
-
 __END__
 
 =head1 NAME
 
-pm-grep - Grep perl modules
+pm-grep - this will search(Grep) modules in the distribution.
 
 =head1 USAGE
 
@@ -245,14 +109,6 @@ This help message
 
 Show version
 
-=item -I,--inc
-
-grep module from @INC
-
-=item -p,--project
-
-grep mode 'Project'.
-
 =back
 
 =head1 OTHER TOOLS
@@ -262,4 +118,5 @@ grep mode 'Project'.
 use pmgrep.vim
 
 =cut
+
 

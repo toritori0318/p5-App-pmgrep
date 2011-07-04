@@ -1,5 +1,7 @@
 .gitignore
 bin/pm-grep
+bin/pm-grep-inc
+bin/pm-grep-project
 Changes
 lib/App/pmgrep.pm
 Makefile.PL

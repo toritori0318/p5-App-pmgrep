@@ -1,8 +1,8 @@
 Revision history for Perl extension App::pmgrep
 
 0.02    2011/06/26
-        - Added options for search from @INC
-        - Added options for search project
+        - Added command pm-grep-inc for grep modules in the @INC.
+        - Added command pm-grep-project for grep modules in the project.
 
 0.01    2011/02/19
         - original version
